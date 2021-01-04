@@ -85,12 +85,10 @@ impl Player {
     const DEFAULT_ELO: f32 = 2000f32;
 
     pub fn new() -> Self {
-        Self::DEFAULT_ELO.into()
+        Self::with_elo(Self::DEFAULT_ELO)
     }
-}
 
-impl From<f32> for Player {
-    fn from(elo: f32) -> Self {
+    pub fn with_elo(elo: f32) -> Self {
         Self(elo)
     }
 }

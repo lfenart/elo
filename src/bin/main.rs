@@ -16,7 +16,7 @@ fn main() -> std::io::Result<()> {
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
             let player = values[0].to_string();
             let elo = values[1].parse::<f32>().unwrap();
-            elo_manager.insert(player, elo.into());
+            elo_manager.insert(player, Player::with_elo(elo));
         }
     }
     let scores = {
