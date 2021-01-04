@@ -66,8 +66,8 @@ impl Game {
     pub fn new<T: AsRef<str>>(team1: &[T], team2: &[T], score: Score) -> Self {
         assert_eq!(team1.len(), team2.len(), "Different size of teams");
         Self {
-            team1: team1.into_iter().map(|x| x.as_ref().to_string()).collect(),
-            team2: team2.into_iter().map(|x| x.as_ref().to_string()).collect(),
+            team1: team1.iter().map(|x| x.as_ref().to_string()).collect(),
+            team2: team2.iter().map(|x| x.as_ref().to_string()).collect(),
             score,
         }
     }
@@ -78,7 +78,7 @@ impl Game {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Player(f32);
 
 impl Player {

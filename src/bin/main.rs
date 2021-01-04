@@ -70,7 +70,7 @@ fn main() -> std::io::Result<()> {
     let mut elo_file = File::create("data/elo.csv")?;
     for (i, (id, player)) in players.into_iter().enumerate() {
         elo_file.write_all(
-            format!("{},{},{}\n", i + 1, id, f32::round((*player).into()) as u16).as_bytes(),
+            format!("{},{},{}\n", i + 1, id, f32::round(player.into()) as u16).as_bytes(),
         )?;
     }
     Ok(())
