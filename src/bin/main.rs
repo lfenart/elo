@@ -7,14 +7,14 @@ use std::io::{BufRead, BufReader};
 use elo::*;
 
 fn main() -> std::io::Result<()> {
-    let mut elo_manager = EloManager::new();
+    let mut elo_manager = EloManager::<u64>::new();
     {
         let file = File::open("data/initial.csv")?;
         let reader = BufReader::new(file);
         for line in reader.lines() {
             let line = line?;
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
-            let player = values[0].to_string();
+            let player = values[0].parse::<u64>().unwrap();
             let elo = values[1].parse::<f32>().unwrap();
             elo_manager.insert(player, Player::with_elo(elo));
         }
@@ -47,7 +47,7 @@ fn main() -> std::io::Result<()> {
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
             let id = values[0].parse::<u16>().unwrap();
             let team = values[1].parse::<u16>().unwrap();
-            let player = values[2].to_string();
+            let player = values[2].parse::<u64>().unwrap();
             if teams.get(&id).is_none() {
                 teams.insert(id, (Vec::new(), Vec::new()));
             }
@@ -61,7 +61,7 @@ fn main() -> std::io::Result<()> {
     };
     for (id, score) in &scores {
         let (team1, team2) = teams.get(&id).unwrap();
-        let game = Game::new(&team1, &team2, *score);
+        let game = Game::new(team1.clone(), team2.clone(), *score);
         elo_manager.process(&game);
     }
     println!("{} games analyzed.", scores.len());
