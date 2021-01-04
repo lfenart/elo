@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, HashMap};
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader};
@@ -5,52 +7,73 @@ use std::io::{BufRead, BufReader};
 use elo::*;
 
 fn main() -> std::io::Result<()> {
-    let file = File::open("data/initial.csv")?;
-    let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
-        let values = line.split(',').into_iter().collect::<Vec<&str>>();
-        let player = values[0].to_string();
-        let elo = values[1].parse::<f32>().unwrap();
-        unsafe { PLAYERS.get() }.insert(player, Player::with_elo(elo));
-    }
-    let file = File::open("data/games.csv")?;
-    let reader = BufReader::new(file);
-    let mut games = Vec::new();
-    let mut players = Vec::new();
-    let mut game_id = 0;
-    let mut result = 0f32;
-    for line in reader.lines().skip(1) {
-        let line = line?;
-        let values = line.split(',').into_iter().collect::<Vec<&str>>();
-        let id = values[0].parse::<u16>().unwrap();
-        let player = values[3].to_string();
-        if id != game_id {
-            if game_id != 0 {
-                games.push(Game::new(players, result));
-                players = Vec::new();
-            }
-            game_id = id;
-            result = match values[2] {
-                "W" => 1f32,
-                "L" => 0f32,
-                "D" => 0.5f32,
-                _ => panic!(),
-            };
+    {
+        let file = File::open("data/initial.csv")?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let line = line?;
+            let values = line.split(',').into_iter().collect::<Vec<&str>>();
+            let player = values[0].to_string();
+            let elo = values[1].parse::<f32>().unwrap();
+            unsafe { PLAYERS.get() }.insert(player, elo.into());
         }
-        players.push(player);
     }
-    games.push(Game::new(players, result));
-    println!("{} games analyzed.", games.len());
-    for game in games {
+    let scores = {
+        let mut scores = BTreeMap::new();
+        let file = File::open("data/scores.csv")?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let line = line?;
+            if line.starts_with('#') {
+                continue;
+            }
+            let values = line.split(',').into_iter().collect::<Vec<&str>>();
+            let id = values[0].parse::<u16>().unwrap();
+            let score = Score::try_from(values[1].chars().next().unwrap()).unwrap();
+            scores.insert(id, score);
+        }
+        scores
+    };
+    let teams = {
+        let mut teams = HashMap::new();
+        let file = File::open("data/games.csv")?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let line = line?;
+            if line.starts_with('#') {
+                continue;
+            }
+            let values = line.split(',').into_iter().collect::<Vec<&str>>();
+            let id = values[0].parse::<u16>().unwrap();
+            let team = values[1].parse::<u16>().unwrap();
+            let player = values[2].to_string();
+            if teams.get(&id).is_none() {
+                teams.insert(id, (Vec::new(), Vec::new()));
+            }
+            if team == 1 {
+                teams.get_mut(&id).unwrap().0.push(player);
+            } else {
+                teams.get_mut(&id).unwrap().1.push(player);
+            }
+        }
+        teams
+    };
+    for (id, score) in &scores {
+        let (team1, team2) = teams.get(&id).unwrap();
+        let mut players = Vec::new();
+        players.extend(team1);
+        players.extend(team2);
+        let game = Game::new(players, *score);
         game.process();
     }
+    println!("{} games analyzed.", scores.len());
     let mut players = unsafe { PLAYERS.get() }.iter().collect::<Vec<_>>();
-    players.sort_unstable_by(|(_, a), (_, b)| b.elo().partial_cmp(&a.elo()).unwrap());
+    players.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(&a).unwrap());
     let mut elo_file = File::create("data/elo.csv")?;
-    for (i, (id, player)) in players.iter().enumerate() {
-        elo_file
-            .write_all(format!("{},{},{}\n", i + 1, id, player.elo().round() as u16).as_bytes())?;
+    for (i, (id, player)) in players.into_iter().enumerate() {
+        elo_file.write_all(
+            format!("{},{},{}\n", i + 1, id, f32::round((*player).into()) as u16).as_bytes(),
+        )?;
     }
     Ok(())
 }
