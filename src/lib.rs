@@ -1,3 +1,3 @@
 mod game;
 
-pub use game::{Game, Player, Players, Score, PLAYERS};
+pub use game::{EloManager, Game, Player, Score};

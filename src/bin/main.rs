@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader};
 use elo::*;
 
 fn main() -> std::io::Result<()> {
+    let mut elo_manager = EloManager::new();
     {
         let file = File::open("data/initial.csv")?;
         let reader = BufReader::new(file);
@@ -15,7 +16,7 @@ fn main() -> std::io::Result<()> {
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
             let player = values[0].to_string();
             let elo = values[1].parse::<f32>().unwrap();
-            unsafe { PLAYERS.get() }.insert(player, elo.into());
+            elo_manager.insert(player, elo.into());
         }
     }
     let scores = {
@@ -60,14 +61,11 @@ fn main() -> std::io::Result<()> {
     };
     for (id, score) in &scores {
         let (team1, team2) = teams.get(&id).unwrap();
-        let mut players = Vec::new();
-        players.extend(team1);
-        players.extend(team2);
-        let game = Game::new(players, *score);
-        game.process();
+        let game = Game::new(&team1, &team2, *score);
+        elo_manager.process(&game);
     }
     println!("{} games analyzed.", scores.len());
-    let mut players = unsafe { PLAYERS.get() }.iter().collect::<Vec<_>>();
+    let mut players = elo_manager.players().iter().collect::<Vec<_>>();
     players.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(&a).unwrap());
     let mut elo_file = File::create("data/elo.csv")?;
     for (i, (id, player)) in players.into_iter().enumerate() {
