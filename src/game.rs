@@ -15,7 +15,7 @@ impl<Id> EloManager<Id> {
         }
     }
 
-    fn expected_score(elo1: f32, elo2: f32) -> f32 {
+    pub fn expected_score(elo1: f32, elo2: f32) -> f32 {
         let delta = (elo2 - elo1).max(-Self::R).min(Self::R);
         1f32 / (1f32 + 10f32.powf(delta / Self::R))
     }
@@ -33,7 +33,10 @@ impl<Id: Eq + Hash> EloManager<Id> {
 
 impl<Id: Eq + Hash + Clone> EloManager<Id> {
     pub fn process(&mut self, game: &Game<Id>) {
-        let expected = Self::expected_score(self.mean_elo(&game.team1), self.mean_elo(&game.team2));
+        let expected = Self::expected_score(
+            self.mean_elo_insert(&game.team1),
+            self.mean_elo_insert(&game.team2),
+        );
         let score: f32 = game.score.into();
         let delta = Self::K * (score - expected);
         for player in &game.team1 {
@@ -44,7 +47,18 @@ impl<Id: Eq + Hash + Clone> EloManager<Id> {
         }
     }
 
-    fn elo(&mut self, player: &Id) -> f32 {
+    fn elo(&self, player: &Id) -> f32 {
+        self.players
+            .get(player)
+            .map(|x| x.into())
+            .unwrap_or(Player::DEFAULT_ELO)
+    }
+
+    pub fn mean_elo(&self, team: &[Id]) -> f32 {
+        team.iter().map(|x| self.elo(x)).sum::<f32>() / team.len() as f32
+    }
+
+    fn elo_insert(&mut self, player: &Id) -> f32 {
         self.players
             .get(player)
             .map(|x| x.into())
@@ -54,8 +68,41 @@ impl<Id: Eq + Hash + Clone> EloManager<Id> {
             })
     }
 
-    fn mean_elo(&mut self, team: &[Id]) -> f32 {
-        team.iter().map(|x| self.elo(x)).sum::<f32>() / team.len() as f32
+    fn mean_elo_insert(&mut self, team: &[Id]) -> f32 {
+        team.iter().map(|x| self.elo_insert(x)).sum::<f32>() / team.len() as f32
+    }
+
+    pub fn find_teams<'a>(&self, players: &'a [Id]) -> (Vec<&'a Id>, Vec<&'a Id>) {
+        let mut best_teams = None;
+        let mut best_score = f32::INFINITY;
+        let mean_elo = self.mean_elo(players);
+        for i in 0..(1 << players.len()) {
+            if (i as u16).count_ones() as usize != players.len() / 2 {
+                continue;
+            }
+            let mut elo = 0f32;
+            for (j, player) in players.iter().enumerate() {
+                if i & (1 << j) != 0 {
+                    elo += self.elo(player);
+                }
+            }
+            elo /= (players.len() / 2) as f32;
+            let score = f32::abs(mean_elo - elo);
+            if score < best_score {
+                best_score = score;
+                best_teams = Some(i);
+            }
+        }
+        let best_teams = best_teams.unwrap();
+        let mut teams = (Vec::new(), Vec::new());
+        for (j, player) in players.iter().enumerate() {
+            if best_teams & (1 << j) != 0 {
+                teams.0.push(player);
+            } else {
+                teams.1.push(player);
+            }
+        }
+        teams
     }
 }
 
@@ -76,8 +123,8 @@ impl<Id: Clone> Game<Id> {
     pub fn new(team1: Vec<Id>, team2: Vec<Id>, score: Score) -> Self {
         assert_eq!(team1.len(), team2.len(), "Teams should have the same size.");
         Self {
-            team1: team1,
-            team2: team2,
+            team1,
+            team2,
             score,
         }
     }

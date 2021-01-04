@@ -7,14 +7,14 @@ use std::io::{BufRead, BufReader};
 use elo::*;
 
 fn main() -> std::io::Result<()> {
-    let mut elo_manager = EloManager::<u64>::new();
+    let mut elo_manager = EloManager::new();
     {
         let file = File::open("data/initial.csv")?;
         let reader = BufReader::new(file);
         for line in reader.lines() {
             let line = line?;
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
-            let player = values[0].parse::<u64>().unwrap();
+            let player = values[0].to_string();
             let elo = values[1].parse::<f32>().unwrap();
             elo_manager.insert(player, Player::with_elo(elo));
         }
@@ -47,7 +47,7 @@ fn main() -> std::io::Result<()> {
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
             let id = values[0].parse::<u16>().unwrap();
             let team = values[1].parse::<u16>().unwrap();
-            let player = values[2].parse::<u64>().unwrap();
+            let player = values[2].to_string();
             if teams.get(&id).is_none() {
                 teams.insert(id, (Vec::new(), Vec::new()));
             }
@@ -65,13 +65,37 @@ fn main() -> std::io::Result<()> {
         elo_manager.process(&game);
     }
     println!("{} games analyzed.", scores.len());
-    let mut players = elo_manager.players().iter().collect::<Vec<_>>();
-    players.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(&a).unwrap());
-    let mut elo_file = File::create("data/elo.csv")?;
-    for (i, (id, player)) in players.into_iter().enumerate() {
-        elo_file.write_all(
-            format!("{},{},{}\n", i + 1, id, f32::round(player.into()) as u16).as_bytes(),
-        )?;
+    {
+        let mut players = elo_manager.players().iter().collect::<Vec<_>>();
+        players.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(&a).unwrap());
+        let mut elo_file = File::create("data/elo.csv")?;
+        for (i, (id, player)) in players.into_iter().enumerate() {
+            elo_file.write_all(
+                format!("{},{},{}\n", i + 1, id, f32::round(player.into()) as u16).as_bytes(),
+            )?;
+        }
+    }
+    {
+        let players = {
+            let mut players = Vec::new();
+            let file = File::open("data/players.csv")?;
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let line = line?;
+                if line.starts_with('#') {
+                    continue;
+                }
+                players.push(line);
+            }
+            players
+        };
+        let teams = elo_manager.find_teams(&players);
+        let expected = EloManager::<String>::expected_score(
+            elo_manager.mean_elo(&teams.0.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
+            elo_manager.mean_elo(&teams.1.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
+        );
+        println!("{:?}", teams);
+        println!("{}", expected);
     }
     Ok(())
 }
