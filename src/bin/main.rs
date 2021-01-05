@@ -29,7 +29,7 @@ fn main() -> std::io::Result<()> {
                 continue;
             }
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
-            let id = values[0].parse::<u16>().unwrap();
+            let id = values[0].parse::<usize>().unwrap();
             let score = Score::try_from(values[1].chars().next().unwrap()).unwrap();
             scores.insert(id, score);
         }
@@ -45,8 +45,8 @@ fn main() -> std::io::Result<()> {
                 continue;
             }
             let values = line.split(',').into_iter().collect::<Vec<&str>>();
-            let id = values[0].parse::<u16>().unwrap();
-            let team = values[1].parse::<u16>().unwrap();
+            let id = values[0].parse::<usize>().unwrap();
+            let team = values[1].parse::<usize>().unwrap();
             let player = values[2].to_string();
             if teams.get(&id).is_none() {
                 teams.insert(id, (Vec::new(), Vec::new()));
@@ -78,24 +78,27 @@ fn main() -> std::io::Result<()> {
     {
         let players = {
             let mut players = Vec::new();
-            let file = File::open("data/players.csv")?;
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                let line = line?;
-                if line.starts_with('#') {
-                    continue;
+            if let Ok(file) = File::open("data/players.csv") {
+                let reader = BufReader::new(file);
+                for line in reader.lines() {
+                    let line = line?;
+                    if line.starts_with('#') {
+                        continue;
+                    }
+                    players.push(line);
                 }
-                players.push(line);
             }
             players
         };
-        let teams = elo_manager.find_teams(&players);
-        let expected = EloManager::<String>::expected_score(
-            elo_manager.mean_elo(&teams.0.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
-            elo_manager.mean_elo(&teams.1.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
-        );
-        println!("{:?}", teams);
-        println!("{}", expected);
+        if !players.is_empty() {
+            let teams = elo_manager.find_teams(&players);
+            let expected = EloManager::<String>::expected_score(
+                elo_manager.mean_elo(&teams.0.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
+                elo_manager.mean_elo(&teams.1.iter().map(|x| x.to_string()).collect::<Vec<_>>()),
+            );
+            println!("{:?}", teams);
+            println!("{}", expected);
+        }
     }
     Ok(())
 }
