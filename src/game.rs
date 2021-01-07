@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-pub struct EloManager<Id> {
+pub struct EloManager<Id: Eq + Hash + Clone> {
     players: HashMap<Id, Player>,
 }
 
-impl<Id> EloManager<Id> {
+impl<Id: Eq + Hash + Clone> EloManager<Id> {
     const K: f32 = 60f32;
     const R: f32 = 400f32;
 
@@ -23,22 +23,17 @@ impl<Id> EloManager<Id> {
     pub fn players(&self) -> &HashMap<Id, Player> {
         &self.players
     }
-}
 
-impl<Id: Eq + Hash> EloManager<Id> {
     pub fn insert(&mut self, id: Id, player: Player) {
         self.players.insert(id, player);
     }
-}
 
-impl<Id: Eq + Hash + Clone> EloManager<Id> {
     pub fn process(&mut self, game: &Game<Id>) {
         let expected = Self::expected_score(
             self.mean_elo_insert(&game.team1),
             self.mean_elo_insert(&game.team2),
         );
-        let score: f32 = game.score.into();
-        let delta = Self::K * (score - expected);
+        let delta = Self::K * (f32::from(game.score) - expected);
         for player in &game.team1 {
             self.players.get_mut(player).unwrap().0 += delta;
         }
@@ -106,7 +101,7 @@ impl<Id: Eq + Hash + Clone> EloManager<Id> {
     }
 }
 
-impl<Id: Clone + Eq + Hash> Default for EloManager<Id> {
+impl<Id: Eq + Hash + Clone> Default for EloManager<Id> {
     fn default() -> Self {
         Self::new()
     }
@@ -145,15 +140,9 @@ impl Player {
     }
 }
 
-impl Into<f32> for &Player {
-    fn into(self) -> f32 {
-        self.0
-    }
-}
-
-impl Into<f32> for Player {
-    fn into(self) -> f32 {
-        self.0
+impl From<&Player> for f32 {
+    fn from(player: &Player) -> Self {
+        player.0
     }
 }
 
@@ -170,9 +159,9 @@ pub enum Score {
     Draw,
 }
 
-impl Into<f32> for Score {
-    fn into(self) -> f32 {
-        match self {
+impl From<Score> for f32 {
+    fn from(score: Score) -> Self {
+        match score {
             Score::Win => 1f32,
             Score::Loss => 0f32,
             Score::Draw => 0.5f32,
